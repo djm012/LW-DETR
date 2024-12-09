@@ -15,7 +15,7 @@ import torchvision
 
 from .coco import build as build_coco
 from .o365 import build_o365
-
+from .yjsk import build as build_yjsk
 
 def get_coco_api_from_dataset(dataset):
     for _ in range(10):
@@ -30,4 +30,6 @@ def build_dataset(image_set, args):
         return build_coco(image_set, args)
     if args.dataset_file == 'o365':
         return build_o365(image_set, args)
+    if args.dataset_file == 'yjsk':
+        return build_yjsk(image_set, args)
     raise ValueError(f'dataset {args.dataset_file} not supported')
