@@ -1,15 +1,15 @@
 model_name='lwdetr_medium_yjsk'
-yjsk_path=$1
-
+yjsk_path='./yjsk'
+# sh scripts/lwdetr_medium_yjsk_train.sh 
 python -u -m torch.distributed.launch \
-    --nproc_per_node=8 \
+    --nproc_per_node=4 \
     --use_env \
     main.py \
     --lr 1e-4 \
     --lr_encoder 1.5e-4 \
     --batch_size 2 \
     --weight_decay 1e-4 \
-    --epochs 60 \
+    --epochs 100 \
     --lr_drop 60 \
     --lr_vit_layer_decay 0.7 \
     --lr_component_decay 0.7 \
@@ -34,7 +34,8 @@ python -u -m torch.distributed.launch \
     --yjsk_path $yjsk_path \
     --square_resize_div_64 \
     --use_ema \
-    --num_classes 9 \
     --pretrained_encoder pretrain_weights/caev2_small_300e_objects365.pth \
-    --pretrain_weights pretrain_weights/LWDETR_medium_coco.pth \
+    --pretrain_weights pretrain_weights/LWDETR_medium_60e_coco.pth \
     --output_dir output/$model_name
+
+    # --pretrain_weights pretrain_weights/LWDETR_medium_30e_objects365.pth \
