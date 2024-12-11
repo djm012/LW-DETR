@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.tensorboard import SummaryWriter
 
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
@@ -135,8 +136,9 @@ def get_args_parser():
     parser.add_argument('--ia_bce_loss', action='store_true')
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='coco')
+    parser.add_argument('--dataset_file', default='coco',choices=['coco','yjsk'])
     parser.add_argument('--coco_path', type=str)
+    parser.add_argument('--yjsk_path', type=str)
     parser.add_argument('--square_resize_div_64', action='store_true')
 
     parser.add_argument('--output_dir', default='output',
@@ -239,12 +241,21 @@ def main(args):
 
     if args.pretrain_weights is not None:
         checkpoint = torch.load(args.pretrain_weights, map_location='cpu')
-        # add support to exclude_keys
-        # e.g., when load object365 pretrain, do not load `class_embed.[weight, bias]`
+        
+        # 添加class_embed相关的key到exclude_keys中
+        class_embed_keys = [
+            'class_embed.weight', 'class_embed.bias',
+        ] + [f'transformer.enc_out_class_embed.{i}.weight' for i in range(13)] + \
+            [f'transformer.enc_out_class_embed.{i}.bias' for i in range(13)]
+        
+        if args.pretrain_exclude_keys is None:
+            args.pretrain_exclude_keys = []
+        args.pretrain_exclude_keys.extend(class_embed_keys)
+        
+        # 排除不匹配的权重
         if args.pretrain_exclude_keys is not None:
-            assert isinstance(args.pretrain_exclude_keys, list)
             for exclude_key in args.pretrain_exclude_keys:
-                checkpoint['model'].pop(exclude_key)
+                checkpoint['model'].pop(exclude_key, None)  # 使用pop(key, None)避免KeyError
         if args.pretrain_keys_modify_to_load is not None:
             from util.obj365_to_coco_model import get_coco_pretrain_from_obj365
             assert isinstance(args.pretrain_keys_modify_to_load, list)
@@ -311,6 +322,10 @@ def main(args):
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
+    if utils.is_main_process():
+        writer = SummaryWriter(log_dir=str(Path(args.output_dir) / "tensorboard"))
+    else:
+        writer = None
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
         if args.distributed:
@@ -410,9 +425,32 @@ def main(args):
                         torch.save(coco_evaluator.coco_eval["bbox"].eval,
                                    output_dir / "eval" / name)
 
+        if utils.is_main_process() and writer is not None:
+            # 记录训练相关指标
+            for k, v in train_stats.items():
+                if isinstance(v, (int, float)):
+                    writer.add_scalar(f'train/{k}', v, epoch)
+            
+            # 记录测试相关指标
+            for k, v in test_stats.items():
+                if isinstance(v, (int, float)):
+                    writer.add_scalar(f'test/{k}', v, epoch)
+            
+            # 记录学习率
+            writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], epoch)
+            
+            # 如果使用了EMA，记录EMA的测试指标
+            if args.use_ema:
+                for k, v in ema_test_stats.items():
+                    if isinstance(v, (int, float)):
+                        writer.add_scalar(f'test_ema/{k}', v, epoch)
+
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+
+    if utils.is_main_process() and writer is not None:
+        writer.close()
 
 
 if __name__ == '__main__':
