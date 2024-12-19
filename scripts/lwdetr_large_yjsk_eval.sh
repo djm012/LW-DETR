@@ -22,7 +22,7 @@ python -u -m torch.distributed.launch \
     --bbox_reparam \
     --lite_refpoint_refine \
     --num_select 300 \
-    --dataset_file coco \
+    --dataset_file yjsk \
     --yjsk_path $yjsk_path \
     --square_resize_div_64 \
     --use_ema \
