@@ -32,7 +32,7 @@ python -u -m torch.distributed.launch \
     --cls_loss_coef 1 \
     --num_select 300 \
     --dataset_file yjsk \
-    --coco_path $yjsk_path \
+    --yjsk_path $yjsk_path \
     --square_resize_div_64 \
     --use_ema \
     --pretrained_encoder pretrain_weights/caev2_small_300e_objects365.pth \
